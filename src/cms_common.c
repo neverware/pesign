@@ -281,6 +281,7 @@ struct cbdata {
 	CERTCertificate *cert;
 	PK11SlotListElement *psle;
 	secuPWData *pwdata;
+	int number;
 };
 
 static SECStatus
@@ -291,12 +292,10 @@ is_valid_cert(CERTCertificate *cert, void *data)
 	PK11SlotInfo *slot = cbdata->psle->slot;
 	void *pwdata = cbdata->pwdata;
 
-	static int first = 1;
-	if (first) {
-	  first = 0;
-	} else {
-	  return SECFailure;
-	}
+    cbdata->number++;
+    if (cbdata->number != 1) {
+      return SECFailure;
+    }
 
 	SECKEYPrivateKey *privkey = NULL;
 	privkey = PK11_FindPrivateKeyFromCert(slot, cert, pwdata);
@@ -458,6 +457,7 @@ find_certificate(cms_context *cms, int needs_private_key)
 		.cert = NULL,
 		.psle = psle,
 		.pwdata = pwdata,
+        .number = 0,
 	};
 
 	if (needs_private_key) {
