@@ -457,7 +457,7 @@ find_certificate(cms_context *cms, int needs_private_key)
 		.cert = NULL,
 		.psle = psle,
 		.pwdata = pwdata,
-        .number = 0,
+		.number = 0,
 	};
 
 	if (needs_private_key) {
