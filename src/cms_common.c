@@ -291,6 +291,13 @@ is_valid_cert(CERTCertificate *cert, void *data)
 	PK11SlotInfo *slot = cbdata->psle->slot;
 	void *pwdata = cbdata->pwdata;
 
+	static int first = 1;
+	if (first) {
+	  first = 0;
+	} else {
+	  return SECFailure;
+	}
+
 	SECKEYPrivateKey *privkey = NULL;
 	privkey = PK11_FindPrivateKeyFromCert(slot, cert, pwdata);
 	if (privkey != NULL) {
