@@ -30,19 +30,19 @@
 #include "libdpe_priv.h"
 
 static inline Pe *
-file_read_pe_obj(int fildes __attribute__((__unused__)),
-		 void *map_address __attribute__((__unused__)),
-		 unsigned char *p_ident __attribute__((__unused__)),
-		 size_t maxsize __attribute__((__unused__)),
-		 Pe_Cmd cmd __attribute__((__unused__)),
-		 Pe *parent __attribute__((__unused__)))
+file_read_pe_obj(int fildes UNUSED,
+		 void *map_address UNUSED,
+		 unsigned char *p_ident UNUSED,
+		 size_t maxsize UNUSED,
+		 Pe_Cmd cmd UNUSED,
+		 Pe *parent UNUSED)
 {
 	return NULL;
 }
 
 static inline Pe *
 file_read_pe_exe(int fildes, void *map_address, unsigned char *p_ident,
-		 size_t maxsize, Pe_Cmd cmd __attribute__((__unused__)),
+		 size_t maxsize, Pe_Cmd cmd UNUSED,
 		 Pe *parent)
 {
 	Pe_Kind kind = determine_kind(p_ident, maxsize);
@@ -279,11 +279,13 @@ write_file (int fd, Pe_Cmd cmd)
 }
 
 static Pe *
-dup_pe(int fildes, Pe_Cmd cmd __attribute__((__unused__)), Pe *ref)
+dup_pe(int fildes, Pe_Cmd cmd UNUSED, Pe *ref)
 {
 	if (fildes == -1) {
 		fildes = ref->fildes;
-	} else if (ref->fildes != -1 && fildes != ref->fildes) {
+	}
+
+	if (ref->fildes != -1 && fildes != ref->fildes) {
 		__libpe_seterrno(PE_E_FD_MISMATCH);
 		return NULL;
 	}

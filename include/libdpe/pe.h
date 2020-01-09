@@ -109,6 +109,15 @@ struct pe_hdr {
 	uint16_t flags;		/* flags */
 };
 
+struct pe_symtab_entry {
+	uint8_t name[8];	/* symbol name */
+	uint32_t value;		/* depends */
+	uint16_t section;	/* section number */
+	uint16_t type;		/* 0x20 for function, 0x0 for not function */
+	uint8_t storage_class;	/* storage class */
+	uint8_t n_aux_symbols;	/* how many more records this one uses... */
+} __attribute__((__packed__)) __attribute__((__aligned__(1)));
+
 #define IMAGE_FILE_OPT_ROM_MAGIC	0x107
 #define IMAGE_FILE_OPT_PE32_MAGIC	0x10b
 #define IMAGE_FILE_OPT_PE32_PLUS_MAGIC	0x20b
@@ -128,11 +137,11 @@ struct pe_hdr {
 #define IMAGE_DLL_CHARACTERISTICS_DYNAMIC_BASE          0x0040
 #define IMAGE_DLL_CHARACTERISTICS_FORCE_INTEGRITY       0x0080
 #define IMAGE_DLL_CHARACTERISTICS_NX_COMPAT             0x0100
-#define IMAGE_DLLCHARACTERISTICS_NO_ISOLATION           0x0200
-#define IMAGE_DLLCHARACTERISTICS_NO_SEH                 0x0400
-#define IMAGE_DLLCHARACTERISTICS_NO_BIND                0x0800
-#define IMAGE_DLLCHARACTERISTICS_WDM_DRIVER             0x2000
-#define IMAGE_DLLCHARACTERISTICS_TERMINAL_SERVER_AWARE  0x8000
+#define IMAGE_DLL_CHARACTERISTICS_NO_ISOLATION          0x0200
+#define IMAGE_DLL_CHARACTERISTICS_NO_SEH                0x0400
+#define IMAGE_DLL_CHARACTERISTICS_NO_BIND               0x0800
+#define IMAGE_DLL_CHARACTERISTICS_WDM_DRIVER            0x2000
+#define IMAGE_DLL_CHARACTERISTICS_TERMINAL_SERVER_AWARE 0x8000
 
 /* the fact that pe32 isn't padded where pe32+ is 64-bit means union won't
  * work right.  vomit. */

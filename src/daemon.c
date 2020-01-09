@@ -17,6 +17,8 @@
  * Author(s): Peter Jones <pjones@redhat.com>
  */
 
+#include "fix_coverity.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <glob.h>
@@ -26,6 +28,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -36,6 +39,7 @@
 #include <grp.h>
 
 #include "pesign.h"
+#include "file_kmod.h"
 
 #include <prerror.h>
 #include <nss.h>
@@ -69,7 +73,7 @@ steal_from_cms(cms_context *old, cms_context *new)
 
 static void
 hide_stolen_goods_from_cms(cms_context *new,
-			   cms_context *old __attribute__((__unused__)))
+			   cms_context *old UNUSED)
 {
 	new->tokenname = NULL;
 	new->certname = NULL;
@@ -121,9 +125,9 @@ send_response(context *ctx, cms_context *cms, struct pollfd *pollfd, int32_t rc)
 }
 
 static void
-handle_kill_daemon(context *ctx __attribute__((__unused__)),
-		   struct pollfd *pollfd __attribute__((__unused__)),
-		   socklen_t size __attribute__((__unused__)))
+handle_kill_daemon(context *ctx UNUSED,
+		   struct pollfd *pollfd UNUSED,
+		   socklen_t size UNUSED)
 {
 	should_exit = 1;
 }
@@ -453,6 +457,116 @@ set_up_outpe(context *ctx, int fd, Pe *inpe, Pe **outpe)
 	return 0;
 }
 
+static int
+sign_pe(context *ctx, int infd, int outfd, int attached)
+{
+	Pe *inpe = NULL;
+
+	int rc = set_up_inpe(ctx, infd, &inpe);
+	if (rc < 0)
+		goto finish;
+
+	if (attached) {
+		Pe *outpe = NULL;
+		rc = set_up_outpe(ctx, outfd, inpe, &outpe);
+		if (rc < 0)
+			goto finish;
+
+		rc = generate_digest(ctx->cms, outpe, 1);
+		if (rc < 0) {
+err_attached:
+			pe_end(outpe);
+			ftruncate(outfd, 0);
+			goto finish;
+		}
+		ssize_t sigspace = calculate_signature_space(ctx->cms, outpe);
+		if (sigspace < 0)
+			goto err_attached;
+		allocate_signature_space(outpe, sigspace);
+		rc = generate_digest(ctx->cms, outpe, 1);
+		if (rc < 0)
+			goto err_attached;
+		rc = generate_signature(ctx->cms);
+		if (rc < 0)
+			goto err_attached;
+		insert_signature(ctx->cms, ctx->cms->num_signatures);
+		finalize_signatures(ctx->cms->signatures,
+				ctx->cms->num_signatures, outpe);
+		pe_end(outpe);
+	} else {
+		ftruncate(outfd, 0);
+		rc = generate_digest(ctx->cms, inpe, 1);
+		if (rc < 0) {
+err_detached:
+			ftruncate(outfd, 0);
+			goto finish;
+		}
+		rc = generate_signature(ctx->cms);
+		if (rc < 0)
+			goto err_detached;
+		rc = export_signature(ctx->cms, outfd, 0);
+		if (rc >= 0)
+			ftruncate(outfd, rc);
+		else if (rc < 0)
+			goto err_detached;
+	}
+
+finish:
+	if (inpe)
+		pe_end(inpe);
+
+	return rc;
+}
+
+static int
+sign_kmod(context *ctx, int infd, int outfd, int attached)
+{
+	unsigned char *map;
+	struct stat statbuf;
+	ssize_t sig_len;
+	int rc;
+
+	rc = fstat(infd, &statbuf);
+	if (rc != 0) {
+		ctx->cms->log(ctx->cms, ctx->priority|LOG_ERR,
+			"could not stat input file: %m");
+		return rc;
+	}
+
+	map = mmap(NULL, statbuf.st_size, PROT_READ, MAP_PRIVATE, infd, 0);
+	if (map == MAP_FAILED) {
+		ctx->cms->log(ctx->cms, ctx->priority|LOG_ERR,
+			"could not map input file: %m");
+		return -1;
+
+	}
+
+	rc = kmod_generate_digest(ctx->cms, map, statbuf.st_size);
+	if (rc < 0)
+		goto out;
+
+	if (attached) {
+		rc = write_file(outfd, map, statbuf.st_size);
+		if (rc) {
+			ctx->cms->log(ctx->cms, ctx->priority|LOG_ERR,
+				"could not write module data: %m");
+			goto out;
+		}
+	}
+
+	sig_len = kmod_write_signature(ctx->cms, outfd);
+	if (sig_len < 0) {
+		rc = sig_len;
+		goto out;
+	}
+
+	rc = kmod_write_sig_info(ctx->cms, outfd, sig_len);
+
+out:
+	munmap(map, statbuf.st_size);
+	return rc;
+}
+
 static void
 handle_signing(context *ctx, struct pollfd *pollfd, socklen_t size,
 	int attached)
@@ -461,7 +575,7 @@ handle_signing(context *ctx, struct pollfd *pollfd, socklen_t size,
 	struct iovec iov;
 	ssize_t n;
 	char *buffer = malloc(size);
-	Pe *inpe = NULL;
+	uint32_t file_format;
 
 	if (!buffer) {
 oom:
@@ -479,7 +593,10 @@ oom:
 
 	n = recvmsg(pollfd->fd, &msg, MSG_WAITALL);
 
-	pesignd_string *tn = (pesignd_string *)buffer;
+	file_format = *((uint32_t *) buffer);
+	n -= sizeof(uint32_t);
+
+	pesignd_string *tn = (pesignd_string *)(buffer + sizeof(uint32_t));
 	if (n < (long long)sizeof(tn->size)) {
 malformed:
 		ctx->cms->log(ctx->cms, ctx->priority|LOG_ERR,
@@ -533,60 +650,23 @@ malformed:
 		goto finish;
 	}
 
-	rc = set_up_inpe(ctx, infd, &inpe);
-	if (rc < 0)
-		goto finish;
-
-	rc = 0;
-	if (attached) {
-		Pe *outpe = NULL;
-		rc = set_up_outpe(ctx, outfd, inpe, &outpe);
-		if (rc < 0)
-			goto finish;
-
-		rc = generate_digest(ctx->cms, outpe, 1);
-		if (rc < 0) {
-err_attached:
-			pe_end(outpe);
-			ftruncate(outfd, 0);
-			goto finish;
-		}
-		ssize_t sigspace = calculate_signature_space(ctx->cms, outpe);
-		if (sigspace < 0)
-			goto err_attached;
-		allocate_signature_space(outpe, sigspace);
-		rc = generate_digest(ctx->cms, outpe, 1);
-		if (rc < 0)
-			goto err_attached;
-		rc = generate_signature(ctx->cms);
-		if (rc < 0)
-			goto err_attached;
-		insert_signature(ctx->cms, ctx->cms->num_signatures);
-		finalize_signatures(ctx->cms->signatures,
-				ctx->cms->num_signatures, outpe);
-		pe_end(outpe);
-	} else {
-		ftruncate(outfd, 0);
-		rc = generate_digest(ctx->cms, inpe, 1);
-		if (rc < 0) {
-err_detached:
-			ftruncate(outfd, 0);
-			goto finish;
-		}
-		rc = generate_signature(ctx->cms);
-		if (rc < 0)
-			goto err_detached;
-		rc = export_signature(ctx->cms, outfd, 0);
-		if (rc >= 0)
-			ftruncate(outfd, rc);
-		else if (rc < 0)
-			goto err_detached;
+	switch (file_format) {
+	case FORMAT_PE_BINARY:
+		rc = sign_pe(ctx, infd, outfd, attached);
+		break;
+	case FORMAT_KERNEL_MODULE:
+		rc = sign_kmod(ctx, infd, outfd, attached);
+		break;
+	default:
+		rc = -1;
+		break;
 	}
 
-finish:
-	if (inpe)
-		pe_end(inpe);
+	if (rc < 0)
+		ctx->cms->log(ctx->cms, ctx->priority|LOG_ERR,
+			      "unrecognised format %d", file_format);
 
+finish:
 	close(infd);
 	close(outfd);
 
@@ -626,11 +706,11 @@ handle_sign_detached(context *ctx, struct pollfd *pollfd, socklen_t size)
 
 static void
 #if 0
-__attribute__((noreturn))
+NORETURN
 #endif
 handle_invalid_input(pesignd_cmd cmd, context *ctx,
-		     struct pollfd *pollfd __attribute__((__unused__)),
-		     socklen_t size __attribute__((__unused__)))
+		     struct pollfd *pollfd UNUSED,
+		     socklen_t size UNUSED)
 {
 		ctx->backup_cms->log(ctx->backup_cms, ctx->priority|LOG_ERR,
 			"got unexpected command 0x%x", cmd);
@@ -927,7 +1007,7 @@ get_uid_and_gid(context *ctx, char **homedir)
 }
 
 static void
-quit_handler(int signal __attribute__((__unused__)))
+quit_handler(int signal UNUSED)
 {
 	should_exit = 1;
 }
@@ -975,7 +1055,7 @@ set_up_socket(context *ctx)
 }
 
 static void
-check_socket(context *ctx __attribute__((__unused__)))
+check_socket(context *ctx UNUSED)
 {
 	errno = 0;
 	int rc = access(SOCKPATH, R_OK);
@@ -1019,8 +1099,7 @@ check_socket(context *ctx __attribute__((__unused__)))
 	}
 }
 
-static int
-__attribute__ ((format (printf, 3, 4)))
+static int PRINTF(3, 4)
 daemon_logger(cms_context *cms, int priority, char *fmt, ...)
 {
 	context *ctx = (context *)cms->log_priv;

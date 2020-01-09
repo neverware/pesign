@@ -17,6 +17,8 @@
  * Author(s): Peter Jones <pjones@redhat.com>
  */
 
+#include "fix_coverity.h"
+
 #include <unistd.h>
 #include <sys/mman.h>
 
@@ -195,10 +197,13 @@ write_authvar(authvar_context *ctx)
 	remain = buf_len;
 	do {
 		wlen = write(ctx->exportfd, buffer, remain);
-		if (wlen < 0)
+		if (wlen < 0) {
+                        free(buffer);
 			cmsreterr(-1, ctx->cms_ctx, "failed to write authvar");
+                }
 		remain -= wlen;
 	} while (remain > 0);
 
+        free(buffer);
 	return 0;
 }

@@ -17,6 +17,8 @@
  * Author(s): Peter Jones <pjones@redhat.com>
  */
 
+#include "fix_coverity.h"
+
 #include <err.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -260,7 +262,7 @@ check_signature(pesigcheck_context *ctx, int *nreasons,
 		reason->reason = BLACKLISTED;
 		reason->type = DIGEST;
 		get_digest(ctx, &reason->digest);
-		reason += 1;
+		nreason += 1;
 		is_invalid = true;
 	}
 
@@ -359,8 +361,8 @@ err:
 }
 
 void
-callback(poptContext con __attribute__((__unused__)),
-	 enum poptCallbackReason reason __attribute__((__unused__)),
+callback(poptContext con UNUSED,
+	 enum poptCallbackReason reason UNUSED,
 	 const struct poptOption *opt,
 	 const char *arg, const void *data)
 {
@@ -513,6 +515,10 @@ main(int argc, char *argv[])
 	if (!ctx.quiet)
 		printf("pesigcheck: \"%s\" is %s.\n", ctx.infile,
 			rc >= 0 ? "valid" : "invalid");
+
+	if (reasons)
+		free(reasons);
+
 	close_input(ctxp);
 	pesigcheck_context_fini(&ctx);
 

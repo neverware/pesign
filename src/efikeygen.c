@@ -17,6 +17,8 @@
  * Author(s): Peter Jones <pjones@redhat.com>
  */
 
+#include "fix_coverity.h"
+
 #include <err.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -48,9 +50,9 @@
 
 #include <libdpe/libdpe.h>
 
+#include "util.h"
 #include "cms_common.h"
 #include "oid.h"
-#include "util.h"
 
 typedef struct {
 	SECItem data;
@@ -206,7 +208,7 @@ static int
 add_cert_type(cms_context *cms, void *extHandle, int is_ca)
 {
 	SECItem bitStringValue;
-	unsigned char type = NS_CERT_TYPE_APP;
+	int type = NS_CERT_TYPE_APP;
 
 	if (is_ca)
 		type |= NS_CERT_TYPE_SSL_CA |
@@ -266,7 +268,6 @@ add_extended_key_usage(cms_context *cms, int modsign_only, void *extHandle)
 		cmsreterr(-1, cms, "could not encode extended key usage");
 
 	tag = find_ms_oid_tag(SHIM_EKU_MODULE_SIGNING_ONLY);
-	printf("tag: %d\n", tag);
 	rc = make_eku_oid(cms, &values[1], tag);
 	if (rc < 0)
 		cmsreterr(-1, cms, "could not encode extended key usage");
@@ -834,6 +835,8 @@ int main(int argc, char *argv[])
 	SECItem signature;
 	status = SEC_SignData(&signature, certder.data, certder.len,
 				sprivkey, oid->offset);
+	if (status != SECSuccess)
+		nsserr(1, "could not create signature");
 
 	SECItem sigder = { 0, };
 	bundle_signature(cms, &sigder, &certder,
@@ -842,6 +845,8 @@ int main(int argc, char *argv[])
 
 	status = PK11_ImportDERCert(slot, &sigder, CK_INVALID_HANDLE, nickname,
 				PR_FALSE);
+	if (status != SECSuccess)
+		nsserr(1, "could not import signature");
 
 	NSS_Shutdown();
 	return 0;
