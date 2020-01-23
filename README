@@ -4,3 +4,11 @@ the PE and Authenticode specifications.
 This is vaguely analogous to the tool described by
 http://msdn.microsoft.com/en-us/library/8s9b9yaz%28v=vs.80%29.aspx
 
+## Neverware
+
+This fork contains a small hack to select the second certificate when
+two certificates share the same nickname, this is a workaround for
+https://github.com/rhboot/pesign/issues/45
+
+The `neverware` branch contains our changes. After making updates,
+make a new tag named `neverware-vNN`.
