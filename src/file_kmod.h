@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Red Hat, Inc.
+ * Copyright 2017 Endless Mobile, Inc.
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -14,26 +14,18 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Author(s): Peter Jones <pjones@redhat.com>
+ * Author(s): Daniel Drake <drake@endlessm.com>
  */
-#ifndef PESIGN_H
-#define PESIGN_H 1
 
-#include <libdpe/libdpe.h>
-#include <libdpe/pe.h>
+#ifndef KMOD_COMMON_H
+#define KMOD_COMMON_H 1
 
-#include "util.h"
-#include "efitypes.h"
-#include "cms_common.h"
-#include "pesigcheck_context.h"
-#include "certdb.h"
+#include <stdint.h>
+#include "pesign_context.h"
 
-#include "endian.h"
-#include "oid.h"
-#include "wincert.h"
-#include "content_info.h"
-#include "signer_info.h"
-#include "signed_data.h"
-#include "password.h"
+int kmod_generate_digest(cms_context *cms, unsigned char *addr, size_t len);
+ssize_t kmod_write_signature(cms_context *cms, int outfd);
+int kmod_write_sig_info(cms_context *cms, int fd, uint32_t sig_len);
 
-#endif /* PESIGN_H */
+#endif
+

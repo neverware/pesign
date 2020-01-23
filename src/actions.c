@@ -17,6 +17,8 @@
  * Author(s): Peter Jones <pjones@redhat.com>
  */
 
+#include "fix_coverity.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,16 +42,16 @@
 static int saw_content;
 
 static void
-handle_bytes(void *arg __attribute__((__unused__)),
-	     const char *buf __attribute__((__unused__)),
-	     unsigned long len __attribute__((__unused__)))
+handle_bytes(void *arg UNUSED,
+	     const char *buf UNUSED,
+	     unsigned long len UNUSED)
 {
 	saw_content = 1;
 }
 
 static PRBool
-decryption_allowed(SECAlgorithmID *algid __attribute__((__unused__)),
-		   PK11SymKey *key __attribute__((__unused__)))
+decryption_allowed(SECAlgorithmID *algid UNUSED,
+		   PK11SymKey *key UNUSED)
 {
 	return PR_TRUE;
 }
@@ -96,7 +98,6 @@ list_signatures(pesign_context *ctx)
 	cert_iter iter;
 
 	int rc = cert_iter_init(&iter, ctx->inpe);
-
 	if (rc < 0) {
 		printf("No certificate list found.\n");
 		return rc;
@@ -106,7 +107,6 @@ list_signatures(pesign_context *ctx)
 	ssize_t datalen;
 	int nsigs = 0;
 
-	rc = 0;
 	while (1) {
 		rc = next_cert(&iter, &data, &datalen);
 		if (rc <= 0)

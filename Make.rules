@@ -19,14 +19,15 @@ install_sysvinit :
 test :
 
 %.a :
-	$(AR) -cvqs $@ $^
+	$(AR) $(ARFLAGS) $@ $^
+	$(RANLIB) $(RANLIBFLAGS) $@
 
 % : %.o
 	$(CCLD) $(ccldflags) $(CPPFLAGS) -o $@ $^ $(LDLIBS)
 
 %.so : 
 	$(CCLD) $(ccldflags) $(CPPFLAGS) $(SOFLAGS) \
-		-Wl,-soname,$@.$(MAJOR_VERSION) \
+		-Wl,-soname,$@.0.$(MAJOR_VERSION) \
 		-o $@ $^ $(LDLIBS)
 
 %.o: %.c

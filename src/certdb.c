@@ -17,6 +17,8 @@
  * Author(s): Peter Jones <pjones@redhat.com>
  */
 
+#include "fix_coverity.h"
+
 #include <fcntl.h>
 #include <libgen.h>
 #include <sys/mman.h>
@@ -262,7 +264,7 @@ check_db(db_specifier which, pesigcheck_context *ctx, checkfn check,
 
 static db_status
 check_hash(pesigcheck_context *ctx, SECItem *sig, efi_guid_t *sigtype,
-	   SECItem *pkcs7sig __attribute__((__unused__)))
+	   SECItem *pkcs7sig UNUSED)
 {
 	efi_guid_t efi_sha256 = efi_guid_sha256;
 	efi_guid_t efi_sha1 = efi_guid_sha1;
@@ -423,7 +425,7 @@ check_cert(pesigcheck_context *ctx, SECItem *sig, efi_guid_t *sigtype,
 		goto out;
 	}
 
-	rv = CERT_DecodeTrustString(&trust, ",,P");
+	rv = CERT_DecodeTrustString(&trust, ",,CP");
 	if (rv != SECSuccess) {
 		fprintf(stderr, "Unable to decode trust string: %s\n",
 			PORT_ErrorToString(PORT_GetError()));

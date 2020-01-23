@@ -17,6 +17,8 @@
  * Author(s): Peter Jones <pjones@redhat.com>
  */
 
+#include "fix_coverity.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -123,9 +125,8 @@ teardown_digests(cms_context *ctx)
 	ctx->digests = NULL;
 }
 
-static int
-__attribute__ ((format (printf, 3, 4)))
-cms_common_log(cms_context *ctx __attribute__((__unused__)), int priority,
+static int PRINTF(3, 4)
+cms_common_log(cms_context *ctx UNUSED, int priority,
 	       char *fmt, ...)
 {
 	va_list ap;
@@ -469,7 +470,7 @@ find_certificate(cms_context *cms, int needs_private_key)
 					is_valid_cert_without_private_key,
 					&cbdata);
 	}
-	if (cbdata.cert == NULL) {
+	if (status != SECSuccess || cbdata.cert == NULL) {
 		save_port_err(
 			CERT_DestroyCertList(certlist);
 			PK11_DestroySlotListElement(slots, &psle);
@@ -1318,6 +1319,11 @@ generate_name(cms_context *cms, SECItem *der, CERTName *certname)
 		CERTAVA *ava;
 		while (avas && (ava = *avas++) != NULL)
 			num_items++;
+	}
+
+	if (num_items == 0) {
+		PORT_ArenaRelease(cms->arena, marka);
+		cmsreterr(-1, cms, "No name items to encode");
 	}
 
 	SECItem items[num_items];

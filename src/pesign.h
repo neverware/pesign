@@ -19,14 +19,16 @@
 #ifndef PESIGN_H
 #define PESIGN_H 1
 
+#include "fix_coverity.h"
+
 #include <libdpe/libdpe.h>
 #include <libdpe/pe.h>
 
+#include "util.h"
 #include "cms_common.h"
 #include "pesign_context.h"
 
 #include "daemon.h"
-#include "util.h"
 #include "efitypes.h"
 #include "actions.h"
 #include "endian.h"
